@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await context.params
     const images = await prisma.itemImage.findMany({
-      where: { itemId: params.id },
+      where: { itemId: id },
       orderBy: { sortOrder: 'asc' },
     })
     return NextResponse.json({ images })
@@ -13,14 +14,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await context.params
     const body = await request.json()
     const { slotKey, label, storageUrl, storagePath, isPrimary, sortOrder, visibility, caption } = body
 
     const image = await prisma.itemImage.create({
       data: {
-        itemId: params.id,
+        itemId: id,
         slotKey,
         label,
         storageUrl,

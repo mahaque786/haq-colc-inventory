@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await context.params
     const references = await prisma.itemReference.findMany({
-      where: { itemId: params.id },
+      where: { itemId: id },
       orderBy: { sortOrder: 'asc' },
     })
     return NextResponse.json({ references })
@@ -13,8 +14,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await context.params
     const body = await request.json()
     const { refType, label, url, value, notes, sortOrder } = body
 
@@ -22,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const reference = await prisma.itemReference.create({
       data: {
-        itemId: params.id,
+        itemId: id,
         refType,
         label,
         url,

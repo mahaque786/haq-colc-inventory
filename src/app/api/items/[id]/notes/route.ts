@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await context.params
     const notes = await prisma.itemNote.findMany({
-      where: { itemId: params.id },
+      where: { itemId: id },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json({ notes })
@@ -13,8 +14,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await context.params
     const body = await request.json()
     const { noteType, body: noteBody, isPublic } = body
 
@@ -22,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const note = await prisma.itemNote.create({
       data: {
-        itemId: params.id,
+        itemId: id,
         noteType,
         body: noteBody,
         isPublic: isPublic ?? false,
