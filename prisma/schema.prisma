@@ -1,0 +1,504 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== ENUMS ====================
+
+enum ItemStatus {
+  DRAFT
+  ACTIVE
+  SOLD
+  ARCHIVED
+}
+
+enum CoinGradingCompany {
+  NGC
+  PCGS
+}
+
+enum CoinRegion {
+  US
+  FOREIGN
+}
+
+enum MetalType {
+  GOLD
+  SILVER
+  PLATINUM
+  PALLADIUM
+  COPPER
+  NICKEL
+  ZINC
+  CLAD
+  OTHER
+}
+
+enum NoteType {
+  CONDITION
+  CATALOG
+  PRICING
+  GENERAL
+  INTERNAL
+  PUBLIC
+}
+
+enum ReferenceType {
+  PCGS_URL
+  NGC_URL
+  EBAY_SOLD
+  GSID
+  NUMISMASTER_URL
+  AUCTION_COMP
+  MARKETPLACE_RESEARCH
+  VALUATION_SOURCE
+  CATALOG_REF
+  CUSTOM_URL
+  PLAIN_TEXT
+  OTHER
+}
+
+enum ImageVisibility {
+  INTERNAL
+  PUBLIC
+  BOTH
+}
+
+enum TCGBrand {
+  POKEMON
+  MTG
+  YUGIOH
+  SPORTS_CARDS
+  OTHER
+}
+
+enum CardType {
+  SINGLE_GRADED
+  SINGLE_UNGRADED
+  SEALED_PRODUCT
+  SEALED_PACK
+}
+
+// ==================== LOOKUP TABLES ====================
+
+model ItemType {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  label       String
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@map("item_types")
+}
+
+model SealedProductType {
+  id        String   @id @default(uuid())
+  brand     TCGBrand
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([brand, name])
+  @@map("sealed_product_types")
+}
+
+model ImageSlotTemplate {
+  id          String   @id @default(uuid())
+  itemTypeCode String
+  slotKey     String
+  label       String
+  recommended Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([itemTypeCode, slotKey])
+  @@map("image_slot_templates")
+}
+
+model PricingPlatform {
+  id                   String   @id @default(uuid())
+  code                 String   @unique
+  name                 String
+  feePercent           Decimal  @db.Decimal(5, 4)
+  paymentFeePercent    Decimal  @db.Decimal(5, 4)
+  paymentFeeFixed      Decimal  @db.Decimal(8, 2) @default(0)
+  promotedListingPercent Decimal? @db.Decimal(5, 4)
+  sortOrder            Int      @default(0)
+  createdAt            DateTime @default(now())
+
+  @@map("pricing_platforms")
+}
+
+// ==================== CORE INVENTORY ====================
+
+model InventoryItem {
+  id              String      @id @default(uuid())
+  sku             String      @unique
+  itemTypeCode    String
+  suggestedTitle  String?
+  customTitle     String?
+  status          ItemStatus  @default(DRAFT)
+  marketValue     Decimal?    @db.Decimal(10, 2)
+  listingPrice    Decimal?    @db.Decimal(10, 2)
+  targetNetProceeds Decimal?  @db.Decimal(10, 2)
+  platformFeePercent Decimal? @db.Decimal(5, 4)
+  paymentFeePercent  Decimal? @db.Decimal(5, 4)
+  paymentFeeFixed    Decimal? @db.Decimal(8, 2)
+  shippingCost    Decimal?    @db.Decimal(8, 2)
+  promotedPercent Decimal?    @db.Decimal(5, 4)
+  suggestedListingPrice Decimal? @db.Decimal(10, 2)
+  pricingNotes    String?
+  publicTitle     String?
+  publicDescription String?
+  conditionSummary String?
+  isPublicReady   Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  images          ItemImage[]
+  references      ItemReference[]
+  notes           ItemNote[]
+  coinNgc         CoinNGC?
+  coinPcgs        CoinPCGS?
+  coinUngradedUSPrecious    CoinUngradedUSPrecious?
+  coinUngradedUSNonPrecious CoinUngradedUSNonPrecious?
+  coinUngradedForeignPrecious    CoinUngradedForeignPrecious?
+  coinUngradedForeignNonPrecious CoinUngradedForeignNonPrecious?
+  paperCurrency   PaperCurrency?
+  tcgSingleGraded   TCGSingleGraded?
+  tcgSingleUngraded TCGSingleUngraded?
+  tcgSealedProduct  TCGSealedProduct?
+  tcgSealedPack     TCGSealedPack?
+
+  @@map("inventory_items")
+}
+
+// ==================== IMAGES ====================
+
+model ItemImage {
+  id            String          @id @default(uuid())
+  itemId        String
+  item          InventoryItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  slotKey       String?
+  label         String?
+  storageUrl    String?
+  storagePath   String?
+  isPrimary     Boolean         @default(false)
+  sortOrder     Int             @default(0)
+  visibility    ImageVisibility @default(BOTH)
+  caption       String?
+  createdAt     DateTime        @default(now())
+
+  @@map("item_images")
+}
+
+// ==================== REFERENCES ====================
+
+model ItemReference {
+  id            String        @id @default(uuid())
+  itemId        String
+  item          InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  refType       ReferenceType
+  label         String?
+  url           String?
+  value         String?
+  notes         String?
+  sortOrder     Int           @default(0)
+  createdAt     DateTime      @default(now())
+
+  @@map("item_references")
+}
+
+// ==================== NOTES ====================
+
+model ItemNote {
+  id        String        @id @default(uuid())
+  itemId    String
+  item      InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  noteType  NoteType
+  body      String
+  isPublic  Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("item_notes")
+}
+
+// ==================== COIN TABLES ====================
+
+model CoinNGC {
+  id              String        @id @default(uuid())
+  itemId          String        @unique
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  denomination    String?
+  year            String?
+  mint            String?
+  mintLocation    String?
+  authorityCountry String?
+  composition     String?
+  variety         String?
+  strikeType      String?
+  edge            String?
+  series          String?
+  grade           String?
+  certNumber      String?
+  slabGeneration  String?
+  holderNotes     String?
+  obverseNotes    String?
+  reverseNotes    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("coins_ngc")
+}
+
+model CoinPCGS {
+  id              String        @id @default(uuid())
+  itemId          String        @unique
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  denomination    String?
+  year            String?
+  mint            String?
+  mintLocation    String?
+  authorityCountry String?
+  composition     String?
+  variety         String?
+  strikeType      String?
+  edge            String?
+  series          String?
+  grade           String?
+  certNumber      String?
+  slabGeneration  String?
+  holderNotes     String?
+  obverseNotes    String?
+  reverseNotes    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("coins_pcgs")
+}
+
+model CoinUngradedUSPrecious {
+  id              String        @id @default(uuid())
+  itemId          String        @unique
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  denomination    String?
+  year            String?
+  mint            String?
+  mintLocation    String?
+  authorityCountry String?      @default("United States")
+  composition     String?
+  metalType       MetalType?
+  weightGrams     Decimal?      @db.Decimal(8, 4)
+  diameterMm      Decimal?      @db.Decimal(6, 2)
+  variety         String?
+  strikeType      String?
+  edge            String?
+  series          String?
+  obverseNotes    String?
+  reverseNotes    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("coins_ungraded_us_precious")
+}
+
+model CoinUngradedUSNonPrecious {
+  id              String        @id @default(uuid())
+  itemId          String        @unique
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  denomination    String?
+  year            String?
+  mint            String?
+  mintLocation    String?
+  authorityCountry String?      @default("United States")
+  composition     String?
+  metalType       MetalType?
+  weightGrams     Decimal?      @db.Decimal(8, 4)
+  diameterMm      Decimal?      @db.Decimal(6, 2)
+  variety         String?
+  strikeType      String?
+  edge            String?
+  series          String?
+  obverseNotes    String?
+  reverseNotes    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("coins_ungraded_us_non_precious")
+}
+
+model CoinUngradedForeignPrecious {
+  id              String        @id @default(uuid())
+  itemId          String        @unique
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  denomination    String?
+  year            String?
+  mint            String?
+  mintLocation    String?
+  authorityCountry String?
+  composition     String?
+  metalType       MetalType?
+  weightGrams     Decimal?      @db.Decimal(8, 4)
+  diameterMm      Decimal?      @db.Decimal(6, 2)
+  variety         String?
+  strikeType      String?
+  edge            String?
+  series          String?
+  obverseNotes    String?
+  reverseNotes    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("coins_ungraded_foreign_precious")
+}
+
+model CoinUngradedForeignNonPrecious {
+  id              String        @id @default(uuid())
+  itemId          String        @unique
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  denomination    String?
+  year            String?
+  mint            String?
+  mintLocation    String?
+  authorityCountry String?
+  composition     String?
+  metalType       MetalType?
+  weightGrams     Decimal?      @db.Decimal(8, 4)
+  diameterMm      Decimal?      @db.Decimal(6, 2)
+  variety         String?
+  strikeType      String?
+  edge            String?
+  series          String?
+  obverseNotes    String?
+  reverseNotes    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("coins_ungraded_foreign_non_precious")
+}
+
+// ==================== PAPER CURRENCY ====================
+
+model PaperCurrency {
+  id            String        @id @default(uuid())
+  itemId        String        @unique
+  item          InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  country       String?
+  denomination  String?
+  yearOrSeries  String?
+  serialNumber  String?
+  grade         String?
+  gradingCompany String?
+  certNumber    String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("paper_currency")
+}
+
+// ==================== TCG TABLES ====================
+
+model TCGSingleGraded {
+  id              String        @id @default(uuid())
+  itemId          String        @unique
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  brand           TCGBrand      @default(POKEMON)
+  gameName        String?
+  setName         String?
+  cardName        String?
+  cardNumber      String?
+  rarity          String?
+  language        String?       @default("English")
+  edition         String?
+  isFoil          Boolean?
+  isHolo          Boolean?
+  variantNotes    String?
+  grade           String?
+  gradingCompany  String?
+  certNumber      String?
+  popReportNotes  String?
+  conditionNotes  String?
+  catalogNotes    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("tcg_single_graded")
+}
+
+model TCGSingleUngraded {
+  id              String        @id @default(uuid())
+  itemId          String        @unique
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  brand           TCGBrand      @default(POKEMON)
+  gameName        String?
+  setName         String?
+  cardName        String?
+  cardNumber      String?
+  rarity          String?
+  language        String?       @default("English")
+  edition         String?
+  isFoil          Boolean?
+  isHolo          Boolean?
+  variantNotes    String?
+  conditionNotes  String?
+  catalogNotes    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("tcg_single_ungraded")
+}
+
+model TCGSealedProduct {
+  id              String        @id @default(uuid())
+  itemId          String        @unique
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  brand           TCGBrand      @default(POKEMON)
+  gameName        String?
+  setName         String?
+  productName     String?
+  productType     String?
+  releaseYear     String?
+  language        String?       @default("English")
+  configuration   String?
+  packCount       Int?
+  cardsPerPack    Int?
+  unitCount       Int?
+  upcBarcode      String?
+  sealCondition   String?
+  packagingCondition String?
+  boxCondition    String?
+  wrapNotes       String?
+  catalogNotes    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("tcg_sealed_products")
+}
+
+model TCGSealedPack {
+  id              String        @id @default(uuid())
+  itemId          String        @unique
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  brand           TCGBrand      @default(POKEMON)
+  gameName        String?
+  setName         String?
+  productName     String?
+  releaseYear     String?
+  language        String?       @default("English")
+  cardsPerPack    Int?
+  upcBarcode      String?
+  sealCondition   String?
+  wrapNotes       String?
+  catalogNotes    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("tcg_sealed_packs")
+}
